@@ -1,0 +1,10 @@
+26/12/24 -> Task 1
+1) When user click on the button + fill the form + that data store in database.
+-------------------------------------------------------------------------------------------
+6/1/25 -> Task 2
+1)find about AWS S3 bucket and how to fetch data from s3 bucket using REST API. 
+2) Data add into csv file when new project add with creater details + groovy using script
+-------------------------------------------------------------------------------------------
+Amazon S3(Simple storage service)
+->highly scalable, secure
+->reliable cloud storage service
