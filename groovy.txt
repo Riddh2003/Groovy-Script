@@ -8,3 +8,5 @@
 Amazon S3(Simple storage service)
 ->highly scalable, secure
 ->reliable cloud storage service
+
+-------------------------------------------------------------------------------------------
