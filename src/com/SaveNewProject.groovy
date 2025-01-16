@@ -4,127 +4,214 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.PreparedStatement
 import java.sql.ResultSet
+import java.util.Scanner
 
-import org.codehaus.groovy.classgen.ReturnAdder
+class ProjectManager {
+    def scanner = new Scanner(System.in)
+    def dbUrl = "jdbc:mysql://localhost:5555/bank"
+    def dbUser = "root"
+    def dbPassword = "riddhmodi"
+    def csvFilePath = "C:/Users/Riddh Modi/Downloads/csvFile.csv"
 
-// Database Conntection step
-def dbUrl = "jdbc:mysql://localhost:5555/bank"
-def dbUser = "root"
-def dbPassword = "riddhmodi"
-
-//csv file path
-def csvFilePath = "C:/Users/Riddh Modi/Downloads/csvFile.csv";
-
-//Input Parameter from the console
-def scanner = new Scanner(System.in)
-print "Enter project creater name: "
-def createrName = scanner.nextLine()
-print "Enter project creater email: "
-def createrEmail = scanner.nextLine()
-print "Enter Project Name: "
-def projectName = scanner.nextLine()
-print "Enter Project Description: "
-def projectDescription = scanner.nextLine()
-print "Enter Start Date(DD-MM-YYYY): "
-def startDate = scanner.nextLine()
-print "Enter End Date(DD-MM-YYYY): "
-def endDate = scanner.nextLine()
-
-// Validation
-if(!projectName || projectName.trim().isEmpty()) {
-    throw new IllegalArgumentException("Project Name is requried.")
-}
-
-if(startDate && endDate && startDate>endDate) {
-    throw new IllegalArgumentException("Start Date cannot be after End Date.")
-}
-
-def empId = fetchEmployee(createrEmail,dbUrl,dbUser,dbPassword)
-if(!empId) {
-    println "No employee found with email: ${createrEmail}"
-    return
-}
-
-// use of map
-def newProject = [
-    name : projectName,
-    description : projectDescription,
-    startDate: startDate,
-    endDate: endDate,
-    emp_id: empId
-    ]
-
-// Save the new project method calling
-saveNewProjectToDatabase(newProject,dbUrl,dbUser,dbPassword)
-
-// all details add into csv file write into form the database
-saveNewProjectToCSV(newProject,csvFilePath)
-
-//output success message
-println "New Project '${projectName}' added successfully."
-
-// fetch employee form the database
-def fetchEmployee(email,dbUrl,dbUser,dbPassword) {
-    Connection connection = null;
-    try {
+    def getConnection() {
         Class.forName('com.mysql.cj.jdbc.Driver')
+        return DriverManager.getConnection(dbUrl, dbUser, dbPassword)
+    }
 
-        connection = DriverManager.getConnection(dbUrl,dbUser,dbPassword)
+    def run() {
+        while (true) {
+            println "\n----------- Project Management System ------------"
+            println "1. Add New Project"
+            println "2. View All Projects"
+            println "3. Update Project"
+            println "4. Delete Project"
+            println "5. Exit"
+            println "Enter your choice: "
 
-        def sql = "Select emp_id from employee where email = ?"
-        def preparedStatement= connection.prepareStatement(sql)
-        preparedStatement.setString(1, email)
+            def choice = scanner.nextInt()
+            scanner.nextLine() // Consume newline
 
-        ResultSet resultSet = preparedStatement.executeQuery();
-        if(resultSet.next()) {
-            return resultSet.getInt('emp_id');
+            switch (choice) {
+                case 1:
+                    addProject()
+                    break
+                case 2:
+                    viewProjects()
+                    break
+                case 3:
+                    updateProject()
+                    break
+                case 4:
+                    deleteProject()
+                    break
+                case 5:
+                    println "Exiting..."
+                    System.exit(0)
+                    break
+                default:
+                    println "Invalid choice!"
+            }
         }
-        else {
-            return null;
+    }
+
+    def addProject() {
+        def project = inputProjectDetails()
+        if (!project) {
+            println "Invalid project details. Cannot create project."
+            return
+        }
+        saveNewProjectToDatabase(project)
+        saveNewProjectToCSV(project)
+    }
+
+    def inputProjectDetails() {
+        println "Enter project name: "
+        def projectName = scanner.nextLine()
+
+        println "Enter project description: "
+        def projectDescription = scanner.nextLine()
+
+        println "Enter start date (yyyy-MM-dd): "
+        def startDate = Date.parse('yyyy-MM-dd', scanner.nextLine())
+
+        println "Enter end date (yyyy-MM-dd): "
+        def endDate = Date.parse('yyyy-MM-dd', scanner.nextLine())
+
+        println "Enter creator email: "
+        def email = scanner.nextLine()
+
+        def empId = fetchEmployee(email)
+        if (!empId) {
+            println "Employee not found with email: $email"
+            return null
         }
 
-    } catch (e) {
-        e.printStackTrace()
+        return [
+            name: projectName,
+            description: projectDescription,
+            startDate: new java.sql.Date(startDate.time),
+            endDate: new java.sql.Date(endDate.time),
+            empId: empId
+        ]
+    }
+
+    def fetchEmployee(email) {
+        def connection = getConnection()
+        try {
+            def sql = "SELECT emp_id FROM employee WHERE email = ?"
+            def preparedStatement = connection.prepareStatement(sql)
+            preparedStatement.setString(1, email)
+            def resultSet = preparedStatement.executeQuery()
+            return resultSet.next() ? resultSet.getInt("emp_id") : null
+        } finally {
+            connection?.close()
+        }
+    }
+
+    def saveNewProjectToDatabase(project) {
+        def connection = getConnection()
+        try {
+            def sql = """INSERT INTO projects(name, description, startDate, endDate, emp_id)
+                         VALUES (?, ?, ?, ?, ?)"""
+            def preparedStatement = connection.prepareStatement(sql)
+            preparedStatement.setString(1, project.name)
+            preparedStatement.setString(2, project.description)
+            preparedStatement.setDate(3, project.startDate)
+            preparedStatement.setDate(4, project.endDate)
+            preparedStatement.setInt(5, project.empId)
+
+            if (preparedStatement.executeUpdate() > 0) {
+                println "Project details successfully added!"
+            }
+        } finally {
+            connection?.close()
+        }
+    }
+
+    def saveNewProjectToCSV(project) {
+        def csvFile = new File(csvFilePath)
+        def isNewFile = !csvFile.exists()
+
+        csvFile.withWriterAppend { writer ->
+            if (isNewFile) {
+                writer.writeLine("Project Name,Description,Start Date,End Date,Creator ID")
+            }
+            writer.writeLine("${project.name},${project.description},${project.startDate},${project.endDate},${project.empId}")
+        }
+        println "Project details saved in the CSV file."
+    }
+
+    def viewProjects() {
+        def connection = getConnection()
+        try {
+            def statement = connection.createStatement()
+            def resultSet = statement.executeQuery("SELECT * FROM projects")
+            while (resultSet.next()) {
+                println "Project ID: ${resultSet.getInt('projectId')}"
+                println "Project Name: ${resultSet.getString('name')}"
+                println "Description: ${resultSet.getString('description')}"
+                println "---------------------------------------------------"
+            }
+        } finally {
+            connection?.close()
+        }
+
+        println "\nProjects in CSV:"
+        new File(csvFilePath).eachLine { line ->
+            println line
+        }
+    }
+
+    def updateProject() {
+        println "Enter the project ID to update: "
+        def id = scanner.nextInt()
+        scanner.nextLine() // Consume newline
+
+        def project = inputProjectDetails()
+        if (!project) {
+            println "Invalid project details. Cannot update."
+            return
+        }
+
+        def connection = getConnection()
+        try {
+            def sql = """UPDATE projects
+                         SET name = ?, description = ?, startDate = ?, endDate = ?, emp_id = ?
+                         WHERE projectId = ?"""
+            def preparedStatement = connection.prepareStatement(sql)
+            preparedStatement.setString(1, project.name)
+            preparedStatement.setString(2, project.description)
+            preparedStatement.setDate(3, project.startDate)
+            preparedStatement.setDate(4, project.endDate)
+            preparedStatement.setInt(5, project.empId)
+            preparedStatement.setInt(6, projectId)
+
+            if (preparedStatement.executeUpdate() > 0) {
+                println "Project successfully updated in the database!"
+            }
+        } finally {
+            connection?.close()
+        }
+    }
+
+    def deleteProject() {
+        println "Enter the project ID to delete: "
+        def id = scanner.nextInt()
+
+        def connection = getConnection()
+        try {
+            def sql = "DELETE FROM projects WHERE projectId = ?"
+            def preparedStatement = connection.prepareStatement(sql)
+            preparedStatement.setInt(1, id)
+
+            if (preparedStatement.executeUpdate() > 0) {
+                println "Project successfully deleted from the database!"
+            }
+        } finally {
+            connection?.close()
+        }
     }
 }
 
-// saving new project method
-def saveNewProjectToDatabase(project,dbUrl,dbUser,dbPassword) {
-    // here we can call api or database insert query for store the data.
-    Connection connection = null;
-    try {
-        Class.forName('com.mysql.cj.jdbc.Driver')
-        connection = DriverManager.getConnection(dbUrl,dbUser,dbPassword)
-
-        def sql = """Insert into projects(name,description,startDate,endDate,emp_id) values(?,?,?,?,?)"""
-
-        def preparedStatement = connection.prepareStatement(sql)
-        preparedStatement.setString(1, project.name)
-        preparedStatement.setString(2, project.description)
-        preparedStatement.setString(3, project.startDate)
-        preparedStatement.setString(4, project.endDate)
-        preparedStatement.setInt(5, project.emp_id)
-
-        int rows = preparedStatement.executeUpdate()
-        if(rows>0) {
-            println "Project details successfully added!"
-        }
-    }catch(Exception e) {
-        println "Error: ${e.message}"
-    }
-}
-
-def saveNewProjectToCSV(project,csvFilePath) {
-    def csvFile = new File(csvFilePath);
-    def isNewFile = !csvFile.exists();
-    //open the file in append mode
-    csvFile.withWriterAppend{writer->
-        // check for csv file exists or not
-        if(isNewFile) {
-            writer.writeLine("Project Name,Description,Start Date,End Date,CreaterId")
-        }
-        //write the project data as a new row
-        writer.writeLine("${project.name},${project.description},${project.startDate},${project.endDate},${project.emp_id}")
-    }
-    println "Project details save in the csv file."
-}
+def projectManager = new ProjectManager()
+projectManager.run()
