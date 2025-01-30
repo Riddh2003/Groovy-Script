@@ -5,6 +5,7 @@ import java.sql.DriverManager
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.util.Scanner
+import java.text.SimpleDateFormat
 
 class ProjectManager {
     def scanner = new Scanner(System.in)
@@ -72,10 +73,10 @@ class ProjectManager {
         def projectDescription = scanner.nextLine()
 
         println "Enter start date (yyyy-MM-dd): "
-        def startDate = Date.parse('yyyy-MM-dd', scanner.nextLine())
+        def startDateStr = scanner.nextLine()
 
         println "Enter end date (yyyy-MM-dd): "
-        def endDate = Date.parse('yyyy-MM-dd', scanner.nextLine())
+        def endDateStr = scanner.nextLine()
 
         println "Enter creator email: "
         def email = scanner.nextLine()
@@ -86,13 +87,21 @@ class ProjectManager {
             return null
         }
 
-        return [
-            name: projectName,
-            description: projectDescription,
-            startDate: new java.sql.Date(startDate.time),
-            endDate: new java.sql.Date(endDate.time),
-            empId: empId
-        ]
+        try {
+            def startDate = java.sql.Date.valueOf(startDateStr)
+            def endDate = java.sql.Date.valueOf(endDateStr)
+
+            return [
+                name: projectName,
+                description: projectDescription,
+                startDate: startDate,
+                endDate: endDate,
+                empId: empId
+            ]
+        } catch (Exception e) {
+            println "Invalid date format. Please enter dates in yyyy-MM-dd format."
+            return null
+        }
     }
 
     def fetchEmployee(email) {
@@ -146,11 +155,10 @@ class ProjectManager {
         try {
             def statement = connection.createStatement()
             def resultSet = statement.executeQuery("SELECT * FROM projects")
+            println "Project ID | Project Name | Project Description | Creator ID"
+            println "-----------------------------------------------------------"
             while (resultSet.next()) {
-                println "Project ID: ${resultSet.getInt('projectId')}"
-                println "Project Name: ${resultSet.getString('name')}"
-                println "Description: ${resultSet.getString('description')}"
-                println "---------------------------------------------------"
+                println "${resultSet.getInt('projectId')} | ${resultSet.getString('name')} | ${resultSet.getString('description')} | ${resultSet.getInt('emp_id')}"
             }
         } finally {
             connection?.close()
@@ -164,7 +172,7 @@ class ProjectManager {
 
     def updateProject() {
         println "Enter the project ID to update: "
-        def id = scanner.nextInt()
+        def projectId = scanner.nextInt()
         scanner.nextLine() // Consume newline
 
         def project = inputProjectDetails()
@@ -196,13 +204,13 @@ class ProjectManager {
 
     def deleteProject() {
         println "Enter the project ID to delete: "
-        def id = scanner.nextInt()
+        def projectId = scanner.nextInt()
 
         def connection = getConnection()
         try {
             def sql = "DELETE FROM projects WHERE projectId = ?"
             def preparedStatement = connection.prepareStatement(sql)
-            preparedStatement.setInt(1, id)
+            preparedStatement.setInt(1, projectId)
 
             if (preparedStatement.executeUpdate() > 0) {
                 println "Project successfully deleted from the database!"
